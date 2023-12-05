@@ -5,8 +5,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui, uic
 import pyqtgraph as pg
 from .. import get_base_path
 from ..lib.uiutils import (
-    DectrisImageGrabber,
-    DectrisStatusGrabber,
+    TvipsImageGrabber,
     interrupt_acquisition,
     RectROI,
 )
@@ -23,7 +22,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
     update_interval = None
 
     def __init__(self, cmd_args, *args, **kwargs):
-        log.debug("initializing DectrisLiveView")
+        log.debug("initializing TvipsLiveView")
         super().__init__(*args, **kwargs)
         uic.loadUi(path.join(get_base_path(), "ui/liveview.ui"), self)
         self.settings = QtCore.QSettings("Siwick Research Group", "TvipsTools Liveview", parent=self)
@@ -46,26 +45,14 @@ class LiveViewUi(QtWidgets.QMainWindow):
 
         self.lineEditExposure = QtWidgets.QLineEdit()
         self.lineEditExposure.setText("300")
-        self.dectris_image_grabber = DectrisImageGrabber(
-            cmd_args.ip,
-            cmd_args.port,
-            trigger_mode="ints",
-            exposure=float(self.lineEditExposure.text()) / 1000,
+        self.tvips_image_grabber = TvipsImageGrabber(
+            cmd_args.camera,
+            exposure=float(self.lineEditExposure.text()),
         )
-        if self.dectris_image_grabber.connected:
-            if self.dectris_image_grabber.Q.counting_mode == "normal":
-                self.actionCmodeNormal.setChecked(True)
-            elif self.dectris_image_grabber.Q.counting_mode == "retrigger":
-                self.actionCmodeRetrigger.setChecked(True)
-        self.dectris_status_grabber = DectrisStatusGrabber(cmd_args.ip, cmd_args.port)
 
         self.image_timer = QtCore.QTimer()
-        self.image_timer.timeout.connect(self.dectris_image_grabber.image_grabber_thread.start)
-        self.dectris_image_grabber.image_ready.connect(self.update_image)
-
-        self.status_timer = QtCore.QTimer()
-        self.status_timer.timeout.connect(self.dectris_status_grabber.status_grabber_thread.start)
-        self.dectris_status_grabber.status_ready.connect(self.update_status_labels)
+        self.image_timer.timeout.connect(self.tvips_image_grabber.image_grabber_thread.start)
+        self.tvips_image_grabber.image_ready.connect(self.update_image)
 
         self.lineEditExposure.returnPressed.connect(self.update_exposure)
 
@@ -79,8 +66,6 @@ class LiveViewUi(QtWidgets.QMainWindow):
 
         self.init_menubar()
         self.init_statusbar()
-
-        self.status_timer.start(200)
 
         self.roi_view = ROIView(title="ROIs")
 
@@ -99,10 +84,8 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.settings.setValue("pin_histogram_zero", self.actionPinHistogramZero.isChecked())
         self.hide()
         self.image_timer.stop()
-        self.status_timer.stop()
-        self.dectris_image_grabber.image_grabber_thread.requestInterruption()
-        self.dectris_status_grabber.status_grabber_thread.wait()
-        self.dectris_image_grabber.image_grabber_thread.wait()
+        self.tvips_image_grabber.image_grabber_thread.requestInterruption()
+        self.tvips_image_grabber.image_grabber_thread.wait()
         super().closeEvent(evt)
 
     def init_statusbar(self):
@@ -158,23 +141,12 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.viewer.ui.histogram.sigLevelsChanged.connect(self.pin_histogram_zero)
         self.viewer.ui.histogram.item.vb.sigRangeChangedManually.connect(self.pin_histogram_zero)
 
-        trigger_mode_group = QtWidgets.QActionGroup(self)
-        trigger_mode_group.addAction(self.actionINTS)
-        trigger_mode_group.addAction(self.actionEXTS)
-        trigger_mode_group.addAction(self.actionEXTE)
-        trigger_mode_group.addAction(self.actionStop)
-        trigger_mode_group.triggered.connect(self.update_trigger_mode)
-        self.actionINTS.setShortcut("Ctrl+1")
-        self.actionEXTS.setShortcut("Ctrl+2")
-        self.actionEXTE.setShortcut("Ctrl+3")
+        running_group = QtWidgets.QActionGroup(self)
+        running_group.addAction(self.actionStart)
+        running_group.addAction(self.actionStop)
+        running_group.triggered.connect(self.update_running)
+        self.actionStart.setShortcut("Space")
         self.actionStop.setShortcut("Esc")
-
-        counting_mode_group = QtWidgets.QActionGroup(self)
-        counting_mode_group.addAction(self.actionCmodeNormal)
-        counting_mode_group.addAction(self.actionCmodeRetrigger)
-        counting_mode_group.triggered.connect(self.update_counting_mode)
-        self.actionCmodeNormal.setShortcut("Ctrl+4")
-        self.actionCmodeRetrigger.setShortcut("Ctrl+5")
 
     @QtCore.pyqtSlot(tuple)
     def update_label_intensity(self, xy):
@@ -212,78 +184,34 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.i_digits = len(str(int(image.max(initial=1))))
         self.update_all_rois()
 
-    @interrupt_acquisition
+
     @QtCore.pyqtSlot()
-    def capture_image(self):
-        log.info("capturing image")
-        if self.dectris_image_grabber.connected:
-            if self.dectris_image_grabber.Q.trigger_mode == "ints":
-                try:
-                    time = float(self.lineEditCapture.text()) / 1000
-                except (ValueError, TypeError):
-                    log.warning(f"image capture: cannot convert {self.lineEditCapture.text()} to float")
-                    return
-
-                self.dectris_image_grabber.Q.trigger_mode = "ints"
-                self.dectris_image_grabber.Q.count_time = time
-                self.dectris_image_grabber.Q.frame_time = time
-
-                self.dectris_image_grabber.image_ready.disconnect(self.update_image)
-                self.dectris_image_grabber.image_ready.connect(self.show_captured_image)
-                self.dectris_image_grabber.image_grabber_thread.start()
-
-    @interrupt_acquisition
-    @QtCore.pyqtSlot()
-    def update_trigger_mode(self):
+    def update_running(self):
         if self.actionStop.isChecked():
             self.labelStop.setText("🛑")
             self.image_timer.stop()
         else:
-            self.labelStop.setText("")
-            if not self.image_timer.isActive():
-                self.image_timer.start(self.update_interval)
-            if self.actionINTS.isChecked():
-                mode = "ints"
-                self.lineEditExposure.setEnabled(True)
-            elif self.actionEXTS.isChecked():
-                mode = "exts"
-                self.lineEditExposure.setEnabled(True)
-            else:
-                mode = "exte"
-                self.lineEditExposure.setEnabled(False)
-            log.info(f"changing trigger mode to {mode}")
-            if self.dectris_image_grabber.connected:
-                self.dectris_image_grabber.Q.trigger_mode = mode
-            else:
-                log.warning(f"could not change trigger mode, detector disconnected")
-
-    @QtCore.pyqtSlot()
-    def update_counting_mode(self):
-        if self.dectris_image_grabber.connected:
-            if self.actionCmodeNormal.isChecked():
-                self.dectris_image_grabber.Q.counting_mode = "normal"
-            else:
-                self.dectris_image_grabber.Q.counting_mode = "retrigger"
+            self.labelStop.setText("💚")
+            self.image_timer.start(self.update_interval)
 
     @interrupt_acquisition
     @QtCore.pyqtSlot()
     def update_exposure(self):
         try:
-            time = float(self.lineEditExposure.text()) / 1000
+            time = float(self.lineEditExposure.text())
         except (ValueError, TypeError):
             log.warning(f"setting exposure: cannot convert {self.lineEditExposure.text()} to float")
             return
 
         log.info(f"changing exporue time to {time}")
-        if self.dectris_image_grabber.connected:
-            self.dectris_image_grabber.Q.count_time = time
-            self.dectris_image_grabber.Q.frame_time = time
+        if self.tvips_image_grabber.connected:
+            self.tvips_image_grabber.f216.exposureTime = time
         else:
             log.warning(f"could not change exposure time, detector disconnected")
 
     @QtCore.pyqtSlot()
     def start_acquisition(self):
-        self.dectris_image_grabber.image_grabber_thread.start()
+        self.tvips_image_grabber.image_grabber_thread.start()
 
     @QtCore.pyqtSlot()
     def add_rect_roi(self):
@@ -345,7 +273,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def start_acquisition(self):
-        self.dectris_image_grabber.image_grabber_thread.start()
+        self.tvips_image_grabber.image_grabber_thread.start()
 
     @QtCore.pyqtSlot()
     def remove_last_roi(self):

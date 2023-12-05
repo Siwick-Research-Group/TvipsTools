@@ -3,16 +3,16 @@ experiment module
 this module runs an experiment
 """
 import warnings
-from sys.stdout import flush
 from argparse import ArgumentParser
 from random import shuffle
 from time import sleep, time
 from datetime import datetime
-from os import rename, path, getcwd, mkdir
+from os import path, getcwd, mkdir
 from tqdm import tqdm
 import numpy as np
 from uedinst.shutter import SC10Shutter
 from uedinst import ILS250PP
+from PIL import Image
 import tango
 from tango import DevState
 from . import CAMERA_DEVICE, TIMESTAMP_FORMAT
@@ -84,14 +84,17 @@ def parse_timedelays(time_str):
     return list(sorted(timedelays))
 
 
-def acquire_image(detector, savedir, scandir, filename):
+def acquire_image(detector, savedir, subdir, filename):
     exception = None
     try:
         detector.AcquireAndDisplayImage()
         sleep(0.1)
         while detector.state() is not DevState.ON:
             sleep(0.25)
-        # TODO: actually save image
+
+        img = detector.currentImage
+        Image.fromarray(img, mode="I").save(path.join(savedir, subdir, filename))
+
     except (tango.DevFailed, tango.CommunicationFailed, tango.WrongData) as exception:
         pass
     return exception
@@ -134,7 +137,6 @@ def run(cmd_args):
     # start experiment
     logfile = open(path.join(savedir, "experiment.log"), "w+")
     logfile.write(fmt_log(f"starting experiment with {cmd_args.n_scans} scans at {len(delays)} delays"))
-    flush()
     try:
         mkdir(path.join(savedir, DIR_LASER_BG))
         mkdir(path.join(savedir, DIR_PUMP_OFF))
@@ -183,7 +185,6 @@ def run(cmd_args):
                     else:
                         break
                 logfile.write(fmt_log(f"pump on image acquired at scan {i+1} and time-delay {delay:.1f}ps"))
-                flush()
 
         s_pump.enable(False)
         s_probe.enable(False)
