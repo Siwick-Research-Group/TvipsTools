@@ -2,8 +2,7 @@ import os
 
 
 VERSION = "0.5"
-IP = "fe80::4ed9:8fff:feca:a8f9"
-PORT = 80
+CAMERA_DEVICE = "ElectronMicroscope/Detectors/F216"
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 

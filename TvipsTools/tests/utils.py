@@ -3,7 +3,7 @@ variables required for testing functionality of the package
 """
 from os.path import join
 import numpy as np
-from DectrisTools import get_base_path
+from TvipsTools import get_base_path
 
 STACKSIZE = 1_000
 IMG_SHAPE = (512, 512)

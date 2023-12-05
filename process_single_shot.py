@@ -6,8 +6,8 @@ from pathlib import Path
 from datetime import datetime
 from mpi4py import MPI
 import numpy as np
-from DectrisTools.lib.processing import process_pump_probe, filenames_from_logfile
-from DectrisTools import TIMESTAMP_FORMAT
+from TvipsTools.lib.processing import process_pump_probe, filenames_from_logfile
+from TvipsTools import TIMESTAMP_FORMAT
 
 
 comm = MPI.COMM_WORLD

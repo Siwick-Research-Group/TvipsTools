@@ -1,16 +1,16 @@
 from setuptools import setup, find_packages, Extension
 from os.path import join
-from DectrisTools import VERSION
+from TvipsTools import VERSION
 import numpy
 
 setup(
-    name="DectrisTools",
+    name="TvipsTools",
     version=VERSION,
     packages=find_packages(),
     ext_modules=[
         Extension(
-            name="DectrisTools.lib.computation",
-            sources=[join("DectrisTools", "lib", "computation.c")],
+            name="TvipsTools.lib.computation",
+            sources=[join("TvipsTools", "lib", "computation.c")],
             include_dirs=[numpy.get_include()],
         )
     ],
@@ -24,11 +24,12 @@ setup(
         "pillow",
         "tqdm",
         "numba",
+        "pytango",
         "uedinst@git+https://github.com/Siwick-Research-Group/uedinst.git",
     ],
-    url="https://github.com/kremeyer/DectrisTools",
+    url="https://github.com/Siwick-Research-Group/TvipsTools",
     license="GNU General Public License v3.0",
     author="Laurenz Kremeyer",
     author_email="laurenz.kremeyer@mail.mcgill.ca",
-    description="tools for the Dectris Quadro detector",
+    description="tools for the Tvips TemCam F216 camera",
 )

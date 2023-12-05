@@ -26,7 +26,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
         log.debug("initializing DectrisLiveView")
         super().__init__(*args, **kwargs)
         uic.loadUi(path.join(get_base_path(), "ui/liveview.ui"), self)
-        self.settings = QtCore.QSettings("Siwick Research Group", "DectrisTools Liveview", parent=self)
+        self.settings = QtCore.QSettings("Siwick Research Group", "TvipsTools Liveview", parent=self)
         if self.settings.value("main_window_geometry") is not None:
             self.setGeometry(self.settings.value("main_window_geometry"))
         if self.settings.value("pin_histogram_zero") is not None:

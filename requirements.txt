@@ -7,3 +7,4 @@ uedinst>=1.3.3
 tqdm~=4.63
 hdf5plugin~=3.3.1
 h5py~=3.7.0
+pytango~=9.4.1
