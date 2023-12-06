@@ -184,14 +184,15 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.i_digits = len(str(int(image.max(initial=1))))
         self.update_all_rois()
 
-
     @QtCore.pyqtSlot()
     def update_running(self):
         if self.actionStop.isChecked():
+            self.tvips_image_grabber.f216.StopContinuous()
             self.labelStop.setText("🛑")
             self.image_timer.stop()
         else:
             self.labelStop.setText("💚")
+            self.tvips_image_grabber.f216.StartContinuous()
             self.image_timer.start(self.update_interval)
 
     @interrupt_acquisition
@@ -208,10 +209,6 @@ class LiveViewUi(QtWidgets.QMainWindow):
             self.tvips_image_grabber.f216.exposureTime = time
         else:
             log.warning(f"could not change exposure time, detector disconnected")
-
-    @QtCore.pyqtSlot()
-    def start_acquisition(self):
-        self.tvips_image_grabber.image_grabber_thread.start()
 
     @QtCore.pyqtSlot()
     def add_rect_roi(self):
@@ -270,10 +267,6 @@ class LiveViewUi(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def update_y_axis_link(self):
         self.roi_view.set_link_y_axis(self.actionLinkYAxis.isChecked())
-
-    @QtCore.pyqtSlot()
-    def start_acquisition(self):
-        self.tvips_image_grabber.image_grabber_thread.start()
 
     @QtCore.pyqtSlot()
     def remove_last_roi(self):

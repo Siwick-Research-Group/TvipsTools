@@ -26,7 +26,7 @@ class TvipsImageGrabber(QObject):
 
         self.f216 = tango.DeviceProxy(camera)
         try:
-            if self.f216.state() in (DevState.ON, DevState.RUNNING):
+            if self.f216.state() in (DevState.ON, DevState.RUNNING, DevState.OPEN):
                 self.connected = True
             log.info(f"TvipsImageGrabber successfully connected to camera\n{camera}")
         except Exception:
@@ -47,15 +47,13 @@ class TvipsImageGrabber(QObject):
         """
         log.debug(f"started image_grabber_thread {self.image_grabber_thread.currentThread()}")
         if self.connected:
-            self.f216.AcquireAndDisplayImage()
-            while True:
-                if self.image_grabber_thread.isInterruptionRequested():
-                    self.image_grabber_thread.quit()
-                sleep(0.05)
-                if self.f216.state() == DevState.ON:
-                    break
+            if self.image_grabber_thread.isInterruptionRequested():
+                self.image_grabber_thread.quit()
 
-            self.image_ready.emit(self.f216.currentImage)
+            try:
+                self.image_ready.emit(np.fliplr(np.rot90(self.f216.continuousImage)))
+            except Exception as e:
+                log.warning(e)
         else:
             # simulated image for @home use
             self.exposure_triggered.emit()
