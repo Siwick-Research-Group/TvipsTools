@@ -43,26 +43,19 @@ class LiveViewUi(QtWidgets.QMainWindow):
 
         self.update_interval = cmd_args.update_interval
 
-        self.lineEditExposure = QtWidgets.QLineEdit()
-        self.lineEditExposure.setText("300")
         self.tvips_image_grabber = TvipsImageGrabber(
             cmd_args.camera,
-            exposure=float(self.lineEditExposure.text()),
         )
 
         self.image_timer = QtCore.QTimer()
         self.image_timer.timeout.connect(self.tvips_image_grabber.image_grabber_thread.start)
         self.tvips_image_grabber.image_ready.connect(self.update_image)
 
-        self.lineEditExposure.returnPressed.connect(self.update_exposure)
-
         self.labelIntensity = QtWidgets.QLabel()
         self.labelState = QtWidgets.QLabel()
         self.labelTrigger = QtWidgets.QLabel()
-        self.labelExposure = QtWidgets.QLabel()
         self.labelCmode = QtWidgets.QLabel()
         self.labelStop = QtWidgets.QLabel()
-        self.labelExposureUser = QtWidgets.QLabel()
 
         self.init_menubar()
         self.init_statusbar()
@@ -84,6 +77,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.settings.setValue("pin_histogram_zero", self.actionPinHistogramZero.isChecked())
         self.hide()
         self.image_timer.stop()
+        self.tvips_image_grabber.f216.StopLive()
         self.tvips_image_grabber.image_grabber_thread.requestInterruption()
         self.tvips_image_grabber.image_grabber_thread.wait()
         super().closeEvent(evt)
@@ -95,27 +89,19 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.labelIntensity.setFont(status_label_font)
         self.labelState.setFont(status_label_font)
         self.labelTrigger.setFont(status_label_font)
-        self.labelExposure.setFont(status_label_font)
         self.labelCmode.setFont(status_label_font)
         self.labelStop.setFont(status_label_font)
-        self.labelExposureUser.setFont(status_label_font)
-        self.lineEditExposure.setFont(status_label_font)
         self.labelStop.setMinimumWidth(15)
         self.labelStop.setText("🛑")
 
         self.labelIntensity.setText(f'({"":>4s}, {"":>4s})   {"":>{self.i_digits}s}')
-        self.labelExposureUser.setText("Exposure [ms]")
         fake_spacer = QtWidgets.QLabel()  # status bar does not accect QSpacerItem
         fake_spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        self.lineEditExposure.setMaximumSize(90, 100)
 
-        self.statusbar.addPermanentWidget(self.labelExposureUser)
-        self.statusbar.addPermanentWidget(self.lineEditExposure)
         self.statusbar.addPermanentWidget(fake_spacer)
         self.statusbar.addPermanentWidget(self.labelIntensity)
         self.statusbar.addPermanentWidget(self.labelState)
         self.statusbar.addPermanentWidget(self.labelTrigger)
-        self.statusbar.addPermanentWidget(self.labelExposure)
         self.statusbar.addPermanentWidget(self.labelCmode)
         self.statusbar.addPermanentWidget(self.labelStop)
 
@@ -162,14 +148,10 @@ class LiveViewUi(QtWidgets.QMainWindow):
         if states["quadro"] is None:
             self.labelState.setText(f'Detector: {"":>7s} Monitor: {"":>7s}')
             self.labelTrigger.setText(f'Trigger: {"":>4s}')
-            self.labelExposure.setText(f'Exposure: {"":>5s}  ')
             self.labelCmode.setText(f'Counting: {"":>9s}')
         else:
             self.labelState.setText(f'Detector: {states["quadro"]:>7s} Monitor: {states["mon"]:>7s}')
             self.labelTrigger.setText(f'Trigger: {states["trigger_mode"]:>4s}')
-            if states["trigger_mode"] == "exts":
-                self.labelExposure.setText("Exposure:   trig ")
-            self.labelExposure.setText(f'Exposure: {states["exposure"] * 1000:>5.0f}ms')
             self.labelCmode.setText(f'Counting: {states["counting_mode"]:>9s}')
 
     @QtCore.pyqtSlot(np.ndarray)
@@ -187,28 +169,13 @@ class LiveViewUi(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def update_running(self):
         if self.actionStop.isChecked():
-            self.tvips_image_grabber.f216.StopContinuous()
+            self.tvips_image_grabber.f216.StopLive()
             self.labelStop.setText("🛑")
             self.image_timer.stop()
         else:
             self.labelStop.setText("💚")
-            self.tvips_image_grabber.f216.StartContinuous()
+            self.tvips_image_grabber.f216.StartLive()
             self.image_timer.start(self.update_interval)
-
-    @interrupt_acquisition
-    @QtCore.pyqtSlot()
-    def update_exposure(self):
-        try:
-            time = float(self.lineEditExposure.text())
-        except (ValueError, TypeError):
-            log.warning(f"setting exposure: cannot convert {self.lineEditExposure.text()} to float")
-            return
-
-        log.info(f"changing exporue time to {time}")
-        if self.tvips_image_grabber.connected:
-            self.tvips_image_grabber.f216.exposureTime = time
-        else:
-            log.warning(f"could not change exposure time, detector disconnected")
 
     @QtCore.pyqtSlot()
     def add_rect_roi(self):

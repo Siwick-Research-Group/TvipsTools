@@ -21,7 +21,7 @@ class TvipsImageGrabber(QObject):
     exposure_triggered = pyqtSignal()
     connected = False
 
-    def __init__(self, camera, exposure=300):
+    def __init__(self, camera):
         super().__init__()
 
         self.f216 = tango.DeviceProxy(camera)
@@ -33,9 +33,6 @@ class TvipsImageGrabber(QObject):
             log.warning("TvipsImageGrabber could not establish connection to camera")
 
         # prepare the hardware for taking images
-        if self.connected:
-            self.f216.exposureTime = exposure
-
         self.image_grabber_thread = QThread()
         self.moveToThread(self.image_grabber_thread)
         self.image_grabber_thread.started.connect(self.__get_image)
@@ -51,7 +48,7 @@ class TvipsImageGrabber(QObject):
                 self.image_grabber_thread.quit()
 
             try:
-                self.image_ready.emit(np.fliplr(np.rot90(self.f216.continuousImage)))
+                self.image_ready.emit(np.fliplr(np.rot90(self.f216.LiveImage)))
             except Exception as e:
                 log.warning(e)
         else:
