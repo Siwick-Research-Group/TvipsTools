@@ -77,9 +77,9 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.settings.setValue("pin_histogram_zero", self.actionPinHistogramZero.isChecked())
         self.hide()
         self.image_timer.stop()
-        self.tvips_image_grabber.f216.StopLive()
         self.tvips_image_grabber.image_grabber_thread.requestInterruption()
         self.tvips_image_grabber.image_grabber_thread.wait()
+        self.tvips_image_grabber.f216.StopLive()
         super().closeEvent(evt)
 
     def init_statusbar(self):
