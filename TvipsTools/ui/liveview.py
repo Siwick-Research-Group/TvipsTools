@@ -82,7 +82,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.image_timer.stop()
         self.tvips_image_grabber.image_grabber_thread.requestInterruption()
         self.tvips_image_grabber.image_grabber_thread.wait()
-        if self.tvips_image_grabber.connected:
+        if self.tvips_image_grabber.connected and self.actionStart.isChecked():
             self.tvips_image_grabber.f216.StopLive()
         super().closeEvent(evt)
 
