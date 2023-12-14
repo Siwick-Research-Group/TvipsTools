@@ -4,17 +4,21 @@ collection of helper classes and functions
 from time import sleep
 import logging as log
 from collections import deque
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread
-from PyQt5.QtWidgets import QAction, QMenu
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread, Qt
+from PyQt5.QtWidgets import QWidgetAction, QMenu, QWidget, QHBoxLayout, QSlider, QLabel
 import numpy as np
 import pyqtgraph as pg
 import tango
 from tango import DevState
 
 
-class TvipsImageGrabber(QObject):
+def fix_image_orientation(image):
+    return np.fliplr(np.rot90(image))
+
+
+class TvipsLiveImageGrabber(QObject):
     """
-    class capable of setting the collecting images from the detector in a non-blocking fashion
+    class capable of grabbing live images in a non-blocking fashion
     """
 
     image_ready = pyqtSignal(np.ndarray)
@@ -28,11 +32,10 @@ class TvipsImageGrabber(QObject):
         try:
             if self.f216.state() in (DevState.ON, DevState.RUNNING, DevState.OPEN):
                 self.connected = True
-            log.info(f"TvipsImageGrabber successfully connected to camera\n{camera}")
+            log.info(f"TvipsLiveImageGrabber successfully connected to camera\n{camera}")
         except Exception:
-            log.warning("TvipsImageGrabber could not establish connection to camera")
+            log.warning("TvipsLiveImageGrabber could not establish connection to camera")
 
-        # prepare the hardware for taking images
         self.image_grabber_thread = QThread()
         self.moveToThread(self.image_grabber_thread)
         self.image_grabber_thread.started.connect(self.__get_image)
@@ -48,7 +51,7 @@ class TvipsImageGrabber(QObject):
                 self.image_grabber_thread.quit()
 
             try:
-                self.image_ready.emit(np.fliplr(np.rot90(self.f216.LiveImage)))
+                self.image_ready.emit(fix_image_orientation(self.f216.LiveImage))
             except Exception as e:
                 log.warning(e)
         else:
@@ -65,75 +68,73 @@ class TvipsImageGrabber(QObject):
         self.image_grabber_thread.quit()
         log.debug(f"quit image_grabber_thread {self.image_grabber_thread.currentThread()}")
 
-    def wait_for_state(self, state_name, logic=True):
-        """
-        making sure waiting for the detector to enter or leave a state is not blocking the interruption of the thread
-        """
-        log.debug(f"waiting for state: {state_name} to be {logic}")
-        if logic:
-            while self.Q.state == state_name:
-                if self.image_grabber_thread.isInterruptionRequested():
-                    self.image_grabber_thread.quit()
-                    return
-                sleep(0.05)
-            return
-        while self.Q.state != state_name:
-            if self.image_grabber_thread.isInterruptionRequested():
-                self.image_grabber_thread.quit()
-                return
-            sleep(0.05)
 
-
-class DectrisStatusGrabber(QObject):
+class TvipsAcquisitionImageGrabber(QObject):
     """
-    class for continiously retrieving status information from the DCU
+    class capable of acquiring images in a non-blocking fashion
     """
 
-    status_ready = pyqtSignal(dict)
+    image_ready = pyqtSignal(np.ndarray)
     connected = False
 
-    def __init__(self, ip, port):
+    def __init__(self, camera):
         super().__init__()
 
-        self.Q = Quadro(ip, port)
+        self.f216 = tango.DeviceProxy(camera)
         try:
-            _ = self.Q.state
-            self.connected = True
-            log.info("DectrisStatusGrabber successfully connected to detector")
-        except OSError:
-            log.warning("DectrisStatusGrabber could not establish connection to detector")
+            if self.f216.state() in (DevState.ON, DevState.RUNNING, DevState.OPEN):
+                self.connected = True
+            log.info(f"TvipsLiveImageGrabber successfully connected to camera\n{camera}")
+        except Exception:
+            log.warning("TvipsLiveImageGrabber could not establish connection to camera")
 
-        self.status_grabber_thread = QThread()
-        self.moveToThread(self.status_grabber_thread)
-        self.status_grabber_thread.started.connect(self.__get_status)
+        self.image_grabber_thread = QThread()
+        self.moveToThread(self.image_grabber_thread)
+        self.image_grabber_thread.started.connect(self.acquire_image)
 
-    @pyqtSlot()
-    def __get_status(self):
-        log.debug(f"started status_grabber_thread {self.status_grabber_thread.currentThread()}")
-        if self.connected:
-            self.status_ready.emit(
-                {
-                    "quadro": self.Q.state,
-                    "fw": self.Q.fw.state,
-                    "mon": self.Q.mon.state,
-                    "trigger_mode": self.Q.trigger_mode,
-                    "exposure": self.Q.frame_time,
-                    "counting_mode": self.Q.counting_mode,
-                }
-            )
+    @property
+    def exposure(self):
+        return self.f216.exposureTime
+
+    def exposure(self, time):
+        if self.connected and self.f216.state() == DevState.ON:
+            self.f216.exposureTime = time
         else:
-            self.status_ready.emit(
-                {
-                    "quadro": None,
-                    "fw": None,
-                    "mon": None,
-                    "trigger_mode": None,
-                    "exposure": None,
-                    "counting_mode": None,
-                }
+            log.warning(f"cannot set exposure time, device state is {self.f216.state()}")
+
+    def acquire_image(self):
+        """
+        image collection method
+        """
+        log.debug(f"started image_grabber_thread {self.image_grabber_thread.currentThread()}")
+        if self.connected:
+            try:
+                if self.f216.state() == DevState.ON:
+                    self.f216.AcquireAndDisplayImage()
+                    while True:
+                        if self.image_grabber_thread.isInterruptionRequested():
+                            self.image_grabber_thread.quit()
+                        sleep(0.25)
+                        if self.f216.state() == DevState.ON:
+                            break
+                    image = self.f216.currentImage
+                    self.image_ready.emit(fix_image_orientation(image))
+                else:
+                    log.warning(f"cannot acquire image, since f216 is in state {self.f216.state()}")
+            except Exception as e:
+                log.warning(e)
+        else:
+            # simulated image for @home use
+            sleep(1)
+            x = np.linspace(-10, 10, 512)
+            xs, ys = np.meshgrid(x, x)
+            img = 5e4 * (
+                (np.cos(np.hypot(xs, ys)) / (np.hypot(xs, ys) + 1) * np.random.normal(1, 0.4, (512, 512))) + 0.3
             )
-        self.status_grabber_thread.quit()
-        log.debug(f"quit status_grabber_thread {self.status_grabber_thread.currentThread()}")
+            self.image_ready.emit(img)
+
+        self.image_grabber_thread.quit()
+        log.debug(f"quit image_grabber_thread {self.image_grabber_thread.currentThread()}")
 
 
 def interrupt_acquisition(f):
@@ -188,3 +189,46 @@ class RectROI(pg.RectROI):
     def add_mean(self, data, img):
         self.last_means.append(self.getArrayRegion(data, img).mean())
         self.curve.setData(x=range(-len(self.last_means) + 1, 1), y=self.last_means)
+
+
+class ActionSlider(QWidgetAction):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.slider = QSlider()
+        self.slider.setOrientation(Qt.Horizontal)
+        self.slider.valueChanged.connect(self.sliderValueChanged)
+
+        self.label = QLabel('')
+        self.label.setAlignment(Qt.AlignCenter)
+
+        layout = QHBoxLayout()
+        layout.addWidget(self.slider)
+        layout.addWidget(self.label)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        self.setDefaultWidget(widget)
+
+    def sliderValueChanged(self, value):
+        self.label.setText(str(value))
+
+
+class ExposureActionSlider(ActionSlider):
+    exposures = [200, 500, 1000, 2000, 5000, 10000, 20000, 30000, 40000]
+
+    def __init__(self):
+        super().__init__()
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(len(self.exposures) - 1)
+        self.slider.setValue(4)
+        self.sliderValueChanged(4)
+        self.label.setMinimumWidth(40)
+
+    def sliderValueChanged(self, value):
+        self.label.setText(f"{self.exposures[value] / 1000:.1f}s")
+
+    @property
+    def exposure(self):
+        return self.exposures[self.slider.value()]

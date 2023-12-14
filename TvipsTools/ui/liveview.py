@@ -5,11 +5,13 @@ from PyQt5 import QtWidgets, QtCore, QtGui, uic
 import pyqtgraph as pg
 from .. import get_base_path
 from ..lib.uiutils import (
-    TvipsImageGrabber,
+    TvipsLiveImageGrabber,
+    TvipsAcquisitionImageGrabber,
     interrupt_acquisition,
     RectROI,
+    ExposureActionSlider
 )
-from .widgets import ROIView
+from .widgets import ROIView, ImageViewWidget
 
 
 class LiveViewUi(QtWidgets.QMainWindow):
@@ -43,13 +45,13 @@ class LiveViewUi(QtWidgets.QMainWindow):
 
         self.update_interval = cmd_args.update_interval
 
-        self.tvips_image_grabber = TvipsImageGrabber(
-            cmd_args.camera,
-        )
+        self.tvips_image_grabber = TvipsLiveImageGrabber(cmd_args.camera)
+        self.tvips_image_acquirer = TvipsAcquisitionImageGrabber(cmd_args.camera)
 
         self.image_timer = QtCore.QTimer()
         self.image_timer.timeout.connect(self.tvips_image_grabber.image_grabber_thread.start)
         self.tvips_image_grabber.image_ready.connect(self.update_image)
+        self.tvips_image_acquirer.image_ready.connect(self.display_acquired_image)
 
         self.labelIntensity = QtWidgets.QLabel()
         self.labelState = QtWidgets.QLabel()
@@ -61,6 +63,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.init_statusbar()
 
         self.roi_view = ROIView(title="ROIs")
+        self.acquired_image_views = []
 
         self.show()
 
@@ -79,7 +82,8 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.image_timer.stop()
         self.tvips_image_grabber.image_grabber_thread.requestInterruption()
         self.tvips_image_grabber.image_grabber_thread.wait()
-        self.tvips_image_grabber.f216.StopLive()
+        if self.tvips_image_grabber.connected:
+            self.tvips_image_grabber.f216.StopLive()
         super().closeEvent(evt)
 
     def init_statusbar(self):
@@ -134,6 +138,10 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.actionStart.setShortcut("Space")
         self.actionStop.setShortcut("Esc")
 
+        self.actionExposureSlider = ExposureActionSlider()
+        self.actionTakeImage.triggered.connect(self.acquire_image)
+        self.menuDetector.addAction(self.actionExposureSlider)
+
     @QtCore.pyqtSlot(tuple)
     def update_label_intensity(self, xy):
         if self.image is None or xy == (np.NaN, np.NaN):
@@ -143,16 +151,16 @@ class LiveViewUi(QtWidgets.QMainWindow):
         i = self.image[x, y]
         self.labelIntensity.setText(f"({x:>4}, {y:>4}) I={i:>{self.i_digits}.0f}")
 
-    @QtCore.pyqtSlot(dict)
-    def update_status_labels(self, states):
-        if states["quadro"] is None:
-            self.labelState.setText(f'Detector: {"":>7s} Monitor: {"":>7s}')
-            self.labelTrigger.setText(f'Trigger: {"":>4s}')
-            self.labelCmode.setText(f'Counting: {"":>9s}')
-        else:
-            self.labelState.setText(f'Detector: {states["quadro"]:>7s} Monitor: {states["mon"]:>7s}')
-            self.labelTrigger.setText(f'Trigger: {states["trigger_mode"]:>4s}')
-            self.labelCmode.setText(f'Counting: {states["counting_mode"]:>9s}')
+    def acquire_image(self):
+        self.tvips_image_acquirer.exposure = self.actionExposureSlider.exposure
+        self.tvips_image_acquirer.acquire_image()
+
+    @QtCore.pyqtSlot(np.ndarray)
+    def display_acquired_image(self, image):
+        ivw = ImageViewWidget()
+        self.acquired_image_views.append(ivw)
+        ivw.setImage(image)
+        ivw.show()
 
     @QtCore.pyqtSlot(np.ndarray)
     def update_image(self, image):
@@ -169,12 +177,16 @@ class LiveViewUi(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def update_running(self):
         if self.actionStop.isChecked():
-            self.tvips_image_grabber.f216.StopLive()
+            if self.tvips_image_grabber.connected:
+                self.tvips_image_grabber.f216.StopLive()
             self.labelStop.setText("🛑")
+            self.actionTakeImage.setEnabled(True)
             self.image_timer.stop()
         else:
+            if self.tvips_image_grabber.connected:
+                self.tvips_image_grabber.f216.StartLive()
             self.labelStop.setText("💚")
-            self.tvips_image_grabber.f216.StartLive()
+            self.actionTakeImage.setEnabled(False)
             self.image_timer.start(self.update_interval)
 
     @QtCore.pyqtSlot()

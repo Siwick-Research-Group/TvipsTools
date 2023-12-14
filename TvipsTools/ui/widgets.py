@@ -14,6 +14,7 @@ class ImageViewWidget(pg.ImageView):
     image = None
     raw_image = None
     cursor_changed = pyqtSignal(tuple)
+    closed = False
 
     def __init__(self, parent=None, cmap="inferno"):
         log.debug("initializing ImageViewWidget")

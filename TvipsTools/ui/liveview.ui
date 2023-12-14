@@ -81,6 +81,8 @@
     <addaction name="separator"/>
     <addaction name="actionStart"/>
     <addaction name="actionStop"/>
+    <addaction name="separator"/>
+    <addaction name="actionTakeImage"/>
    </widget>
    <addaction name="menuROI"/>
    <addaction name="menuView"/>
@@ -281,6 +283,11 @@
    </property>
    <property name="text">
     <string>start</string>
+   </property>
+  </action>
+  <action name="actionTakeImage">
+   <property name="text">
+    <string>take image</string>
    </property>
   </action>
  </widget>
