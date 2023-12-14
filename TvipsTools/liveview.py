@@ -12,7 +12,9 @@ from . import CAMERA_DEVICE
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("--camera", type=str, default=CAMERA_DEVICE, help="camera's tango device server")
+    parser.add_argument(
+        "--camera", type=str, default=CAMERA_DEVICE, help="camera's tango device server"
+    )
     parser.add_argument("--verbose", action="store_true", help="enable verbose logging")
     parser.add_argument(
         "--update_interval",
