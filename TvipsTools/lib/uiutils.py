@@ -96,6 +96,7 @@ class TvipsAcquisitionImageGrabber(QObject):
     def exposure(self):
         return self.f216.exposureTime
 
+    @exposure.setter
     def exposure(self, time):
         if self.connected and self.f216.state() == DevState.ON:
             self.f216.exposureTime = time
