@@ -5,7 +5,7 @@ from time import sleep
 import logging as log
 from collections import deque
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread, Qt
-from PyQt5.QtWidgets import QWidgetAction, QMenu, QWidget, QHBoxLayout, QSlider, QLabel
+from PyQt5.QtWidgets import QWidgetAction, QMenu, QWidget, QHBoxLayout, QSlider, QLabel, QAction
 import numpy as np
 import pyqtgraph as pg
 import tango

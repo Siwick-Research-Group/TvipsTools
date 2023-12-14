@@ -20,6 +20,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
     """
 
     image = None
+    dark_image = None
     i_digits = 5
     update_interval = None
 
@@ -42,6 +43,8 @@ class LiveViewUi(QtWidgets.QMainWindow):
                     self.viewer.setHistogramRange(*self.settings.value("image_levels"))
                 if self.settings.value("histogram_range") is not None:
                     self.viewer.ui.histogram.setHistogramRange(*self.settings.value("histogram_range"), padding=0)
+        if self.settings.value("dark_image") is not None:
+            self.dark_image = self.settings.value("dark_image")
 
         self.update_interval = cmd_args.update_interval
 
@@ -78,6 +81,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
         hist_range = tuple(self.viewer.ui.histogram.item.vb.viewRange()[1])  # wtf?
         self.settings.setValue("histogram_range", hist_range)
         self.settings.setValue("pin_histogram_zero", self.actionPinHistogramZero.isChecked())
+        self.settings.setValue("dark_image", self.dark_image)
         self.hide()
         self.image_timer.stop()
         self.tvips_image_grabber.image_grabber_thread.requestInterruption()
@@ -142,6 +146,14 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.actionTakeImage.triggered.connect(self.acquire_image)
         self.menuDetector.addAction(self.actionExposureSlider)
 
+        self.menuDetector.addSeparator()
+        self.actionTakeDark = QtWidgets.QAction("take dark")
+        self.menuDetector.addAction(self.actionTakeDark)
+        self.actionTakeDark.triggered.connect(self.set_dark)
+        self.actionClearDark = QtWidgets.QAction("clear dark")
+        self.actionClearDark.triggered.connect(self.clear_dark)
+        self.menuDetector.addAction(self.actionClearDark)
+
     @QtCore.pyqtSlot(tuple)
     def update_label_intensity(self, xy):
         if self.image is None or xy == (np.NaN, np.NaN):
@@ -155,8 +167,18 @@ class LiveViewUi(QtWidgets.QMainWindow):
         self.tvips_image_acquirer.exposure = self.actionExposureSlider.exposure
         self.tvips_image_acquirer.acquire_image()
 
+    @QtCore.pyqtSlot()
+    def set_dark(self):
+        self.dark_image = self.image
+
+    @QtCore.pyqtSlot()
+    def clear_dark(self):
+        self.dark_image = None
+
     @QtCore.pyqtSlot(np.ndarray)
     def display_acquired_image(self, image):
+        if self.dark_image is not None:
+            image = image.astype(np.int32) - self.dark_image
         ivw = ImageViewWidget()
         self.acquired_image_views.append(ivw)
         ivw.setImage(image)
@@ -164,10 +186,13 @@ class LiveViewUi(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray)
     def update_image(self, image):
-        self.image = image
+        if self.dark_image is not None:
+            self.image = image.astype(np.int32) - self.dark_image
+        else:
+            self.image = image
         self.viewer.clear()
         self.viewer.setImage(
-            image,
+            self.image,
             max_label=self.actionShowMaxPixelValue.isChecked(),
             projections=self.actionShowProjections.isChecked(),
         )
