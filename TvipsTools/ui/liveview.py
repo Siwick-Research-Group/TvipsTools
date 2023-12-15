@@ -230,7 +230,7 @@ class LiveViewUi(QtWidgets.QMainWindow):
             )
             roi.removable = True
             roi.sigRemoveRequested.connect(self.remove_roi)
-            roi.sigRegionChanged.connect(self.update_roi)
+            roi.sigRegionChangeFinished.connect(self.update_roi)
 
             self.viewer.addItem(roi)
             roi.plot_item = self.roi_view.addPlot()
