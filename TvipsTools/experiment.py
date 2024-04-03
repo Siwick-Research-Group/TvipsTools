@@ -11,7 +11,7 @@ from os import path, getcwd, mkdir
 from tqdm import tqdm
 import numpy as np
 from uedinst.shutter import SC10Shutter
-from uedinst import ILS250PP
+from uedinst.delay_stage import move_stages_to_time, XPSController
 from PIL import Image
 import tango
 from tango import DevState
@@ -23,7 +23,7 @@ warnings.simplefilter("ignore", ResourceWarning)
 DIR_PUMP_OFF = "pump_off"
 DIR_LASER_BG = "laser_background"
 DIR_DARK = "dark_image"
-T0_POS = 27.1083
+T0_POS = 100
 
 
 def parse_args():
@@ -34,19 +34,19 @@ def parse_args():
     parser.add_argument(
         "--pump_shutter_port",
         type=str,
-        default="COM22",
+        default="COM27",
         help="com port of the shutter controller for the pump shutter",
     )
     parser.add_argument(
         "--probe_shutter_port",
         type=str,
-        default="COM20",
+        default="COM17",
         help="com port of the shutter controller for the probe shutter",
     )
     parser.add_argument(
         "--delay_stage_ip",
         type=str,
-        default="175.25.12.14",
+        default="172.25.12.14",
         help="ip address of newport motion controller",
     )
     parser.add_argument("--savedir", type=str, help="save directory")
@@ -129,14 +129,14 @@ def run(cmd_args):
         if i > 4 * 10:
             raise tango.DevFailed(f"camera not ON, but {f216.state()}")
 
-    f216.exposureTime = cmd_args.exposure
+    f216.exposureTime = cmd_args.exposure*1000 #CAMC takes ms
 
     s_pump = SC10Shutter(args.pump_shutter_port)
     s_pump.set_operating_mode("manual")
     s_probe = SC10Shutter(args.probe_shutter_port)
     s_probe.set_operating_mode("manual")
 
-    delay_stage = ILS250PP(cmd_args.delay_stage_ip)
+    xps = XPSController(cmd_args.delay_stage_ip)
 
     # start experiment
     logfile = open(path.join(savedir, "experiment.log"), "w+")
@@ -154,7 +154,7 @@ def run(cmd_args):
             s_probe.enable(False)
             while True:
                 exception = acquire_image(
-                    f216, savedir, DIR_LASER_BG, f"dark_epoch_{time():010.0f}s.tif"
+                    f216, savedir, DIR_DARK, f"dark_epoch_{time():010.0f}s.tif"
                 )
                 if exception:
                     logfile.write(fmt_log(str(exception)))
@@ -190,8 +190,8 @@ def run(cmd_args):
             for delay in tqdm(delays, leave=False, desc="delay steps"):
                 filename = f"pumpon_{delay:+010.3f}ps.tif"
 
-                delay_stage.absolute_time(delay, T0_POS)
-                delay_stage._wait_end_of_move()
+                move_stages_to_time(xps, delay, T0_POS)
+                xps.delay_stage._wait_end_of_move()
                 while True:
                     exception = acquire_image(f216, savedir, scandir, filename)
                     if exception:
