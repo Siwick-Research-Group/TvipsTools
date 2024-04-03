@@ -7,7 +7,6 @@ from .. import get_base_path
 from ..lib.uiutils import (
     TvipsLiveImageGrabber,
     TvipsAcquisitionImageGrabber,
-    interrupt_acquisition,
     RectROI,
     ExposureActionSlider
 )

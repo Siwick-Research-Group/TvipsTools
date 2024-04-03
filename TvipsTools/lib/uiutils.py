@@ -58,10 +58,10 @@ class TvipsLiveImageGrabber(QObject):
             # simulated image for @home use
             self.exposure_triggered.emit()
             sleep(1)
-            x = np.linspace(-10, 10, 512)
+            x = np.linspace(-10, 10, 2048)
             xs, ys = np.meshgrid(x, x)
             img = 5e4 * (
-                (np.cos(np.hypot(xs, ys)) / (np.hypot(xs, ys) + 1) * np.random.normal(1, 0.4, (512, 512))) + 0.3
+                (np.cos(np.hypot(xs, ys)) / (np.hypot(xs, ys) + 1) * np.random.normal(1, 0.4, (2048, 2048))) + 0.3
             )
             self.image_ready.emit(img)
 
@@ -127,10 +127,10 @@ class TvipsAcquisitionImageGrabber(QObject):
         else:
             # simulated image for @home use
             sleep(1)
-            x = np.linspace(-10, 10, 512)
+            x = np.linspace(-10, 10, 2048)
             xs, ys = np.meshgrid(x, x)
             img = 5e4 * (
-                (np.cos(np.hypot(xs, ys)) / (np.hypot(xs, ys) + 1) * np.random.normal(1, 0.4, (512, 512))) + 0.3
+                (np.cos(np.hypot(xs, ys)) / (np.hypot(xs, ys) + 1) * np.random.normal(1, 0.4, (2048, 2048))) + 0.3
             )
             self.image_ready.emit(img)
 
@@ -186,6 +186,7 @@ class RectROI(pg.RectROI):
 
     def integral_plot_clicked(self):
         self.win.show()
+        self.plot.setYRange(0, max(self.last_means) * 2)
 
     def add_mean(self, data, img):
         self.last_means.append(self.getArrayRegion(data, img).mean())

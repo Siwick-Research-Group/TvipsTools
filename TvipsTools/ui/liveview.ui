@@ -63,6 +63,7 @@
     <addaction name="actionRemoveLastROI"/>
     <addaction name="actionRemoveAllROIs"/>
     <addaction name="actionLinkYAxis"/>
+    <addaction name="actionPinROIPlotsZero"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -288,6 +289,14 @@
   <action name="actionTakeImage">
    <property name="text">
     <string>take image</string>
+   </property>
+  </action>
+  <action name="actionPinROIPlotsZero">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Pin ROI plots zero</string>
    </property>
   </action>
  </widget>
