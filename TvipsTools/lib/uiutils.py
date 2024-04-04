@@ -160,6 +160,11 @@ def interrupt_acquisition(f):
 
 
 class RectROI(pg.RectROI):
+    mean_thread = QThread()
+    update_mean_plot = pyqtSignal()
+    __last_img = None
+    __last_img_data = None
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.win = pg.GraphicsLayoutWidget(title="ROI integrated intensity")
@@ -168,6 +173,9 @@ class RectROI(pg.RectROI):
         self.plot.axes["bottom"]["item"].setLabel("image index")
         self.curve = self.plot.plot()
         self.last_means = deque(maxlen=30)
+
+        self.update_mean_plot.connect(self.__update_mean_plot)
+        self.mean_thread.started.connect(self.__compute_mean)
 
     def getMenu(self):
         if self.menu is None:
@@ -185,12 +193,23 @@ class RectROI(pg.RectROI):
         return self.menu
 
     def integral_plot_clicked(self):
+        print("integral plot clicked")
         self.win.show()
         self.plot.setYRange(0, max(self.last_means) * 2)
 
     def add_mean(self, data, img):
-        self.last_means.append(self.getArrayRegion(data, img).mean())
+        self.__last_img_data = data
+        self.__last_img = img
+        self.mean_thread.start()
+
+    @pyqtSlot()
+    def __update_mean_plot(self):
         self.curve.setData(x=range(-len(self.last_means) + 1, 1), y=self.last_means)
+
+    def __compute_mean(self):
+        self.last_means.append(self.getArrayRegion(self.__last_img_data, self.__last_img).mean())
+        self.mean_thread.quit()
+        self.update_mean_plot.emit()
 
 
 class ActionSlider(QWidgetAction):
